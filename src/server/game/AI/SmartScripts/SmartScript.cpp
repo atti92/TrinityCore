@@ -3057,6 +3057,16 @@ void SmartScript::ProcessEvent(SmartScriptHolder& e, Unit* unit, uint32 var0, ui
             ProcessTimedAction(e, e.event.friendlyHealthPct.repeatMin, e.event.friendlyHealthPct.repeatMax, target);
             break;
         }
+		case SMART_EVENT_POWER_PCT:
+		{
+			if (!me || !me->IsInCombat() || !me->GetMaxHealth())
+				return;
+			uint32 perc = 100 * ((uint32)me->GetPower(Powers(e.event.powerPct.powType)))/((uint32)me->GetMaxPower(Powers(e.event.powerPct.powType)));
+			if (perc > e.event.powerPct.max || perc < e.event.powerPct.min)
+				return;
+			ProcessTimedAction(e, e.event.powerPct.repeat, e.event.powerPct.repeat);
+			break;
+		}
         default:
             TC_LOG_ERROR(LOG_FILTER_SQL, "SmartScript::ProcessEvent: Unhandled Event type %u", e.GetEventType());
             break;
@@ -3137,6 +3147,7 @@ void SmartScript::UpdateTimer(SmartScriptHolder& e, uint32 const diff)
             case SMART_EVENT_TARGET_BUFFED:
             case SMART_EVENT_IS_BEHIND_TARGET:
             case SMART_EVENT_FRIENDLY_HEALTH_PCT:
+			case SMART_EVENT_POWER_PCT:
             {
                 ProcessEvent(e);
                 if (e.GetScriptType() == SMART_SCRIPT_TYPE_TIMED_ACTIONLIST)

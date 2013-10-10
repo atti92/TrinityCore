@@ -27,6 +27,8 @@ EndScriptData */
 #include "AuctionHouseMgr.h"
 #include "Chat.h"
 #include "CreatureTextMgr.h"
+#include "CreatureAI.h"
+#include "Player.h"
 #include "DisableMgr.h"
 #include "Language.h"
 #include "LFGMgr.h"
@@ -1172,10 +1174,56 @@ public:
 
     static bool HandleReloadSmartScripts(ChatHandler* handler, const char* /*args*/)
     {
-        TC_LOG_INFO(LOG_FILTER_GENERAL, "Re-Loading Smart Scripts...");
-        sSmartScriptMgr->LoadSmartAIFromDB();
-        handler->SendGlobalGMSysMessage("Smart Scripts reloaded.");
-        return true;
+		TC_LOG_INFO(LOG_FILTER_GENERAL, "Re-Loading Smart Scripts...");
+		sSmartScriptMgr->LoadSmartAIFromDB();
+		handler->SendGlobalGMSysMessage("Smart Scripts reloaded.");
+
+		Creature* target = handler->getSelectedCreature();
+		float x,y,z,o;
+		if (!target)
+		{
+			handler->SendGlobalGMSysMessage("No creature Selected for full reload.");
+			return true;
+		}
+		uint32 id = target->GetEntry();
+		int32 teamval = 0;
+		uint8 spawnMask = target->GetPhaseMask();
+		Map* map = target->GetMap();
+		char * buff = new char[10];
+		sprintf(buff, "%u", target->GetEntry());
+		HandleReloadCreatureTemplateCommand(handler, buff);
+		handler->PSendSysMessage("Creature template (%u) loaded.", id);
+		target->GetRespawnPosition(x, y, z, &o);
+		uint32 guidlow = target->GetGUIDLow();
+		uint32 db_guid = target->GetDBTableGUIDLow();
+
+		if (!target || target->IsPet() || target->IsTotem())
+		{
+			handler->SendSysMessage(LANG_SELECT_CREATURE);
+			handler->SetSentErrorMessage(true);
+			return true;
+		}
+
+		target->CombatStop();
+		target->AddObjectToRemoveList();
+
+		Creature* creature = new Creature();
+		if (!creature->Create(guidlow, map, spawnMask, id, 0, (uint32)teamval, x, y, z, o))
+		{
+			delete creature;
+			return false;
+		}
+
+		// To call _LoadGoods(); _LoadQuests(); CreateTrainerSpells();
+		if (!creature->LoadCreatureFromDB(db_guid, map))
+		{
+			delete creature;
+			return false;
+		}
+
+		sObjectMgr->AddCreatureToGrid(db_guid, sObjectMgr->GetCreatureData(db_guid));
+
+		return true;
     }
 
     static bool HandleReloadVehicleAccessoryCommand(ChatHandler* handler, const char* /*args*/)
